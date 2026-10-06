@@ -1,0 +1,12 @@
+import { TableFrame } from '@/components/catalog/catalog-ui'
+import { AlertStatus } from '@/components/alerts/alert-status'
+import { Button } from '@/components/ui/button'
+import { formatCount } from '@/lib/dashboard-format'
+import type { StockAlert } from '@/types/alert'
+
+export function AlertsList({ alerts, onView }: { alerts: StockAlert[]; onView: (alert: StockAlert) => void }) {
+  const action = (alert: StockAlert) => <Button size="sm" variant="outline" aria-label={`View product ${alert.name}`} onClick={() => onView(alert)}>View product</Button>
+  return <><TableFrame label="Stock alerts"><table className="w-full text-left text-xs"><caption className="sr-only">Current inventory alerts, out of stock first and then ordered by product ID.</caption><thead className="border-b bg-muted/30 text-[10px] text-muted-foreground"><tr>{['Status', 'Product', 'Current stock', 'Reorder level', 'Action'].map((label) => <th scope="col" key={label} className="px-4 py-3 font-medium">{label}</th>)}</tr></thead><tbody className="divide-y">{alerts.map((alert) => <tr key={alert.product_id} className="hover:bg-muted/20"><td className="px-4 py-4 align-top"><AlertStatus status={alert.status} /></td><th scope="row" className="max-w-72 px-4 py-4 align-top text-left font-normal"><p className="break-words font-medium">{alert.name}</p><p className="mt-1 break-words text-[10px] text-muted-foreground">{alert.sku}</p></th><td className="px-4 py-4 align-top font-medium tabular-nums">{formatCount(alert.quantity_in_stock)}</td><td className="px-4 py-4 align-top tabular-nums">{formatCount(alert.reorder_level)}</td><td className="px-4 py-4 align-top">{action(alert)}</td></tr>)}</tbody></table></TableFrame>
+    <div className="space-y-3 lg:hidden">{alerts.map((alert) => <article key={alert.product_id} className="rounded-xl border bg-card p-4"><AlertStatus status={alert.status} /><h2 className="mt-3 break-words text-sm font-medium">{alert.name}</h2><p className="mt-1 break-words text-xs text-muted-foreground">{alert.sku}</p><dl className="my-4 grid grid-cols-2 gap-4"><div><dt className="text-[11px] text-muted-foreground">Current stock</dt><dd className="mt-1 text-sm font-medium tabular-nums">{formatCount(alert.quantity_in_stock)}</dd></div><div><dt className="text-[11px] text-muted-foreground">Reorder level</dt><dd className="mt-1 text-sm font-medium tabular-nums">{formatCount(alert.reorder_level)}</dd></div></dl>{action(alert)}</article>)}</div>
+  </>
+}

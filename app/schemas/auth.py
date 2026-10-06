@@ -2,7 +2,6 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
-from app.models import Role
 from app.schemas.user import EmailInput, UserName, UserResponse
 
 
@@ -10,10 +9,6 @@ class UserRegister(EmailInput):
     first_name: UserName
     last_name: UserName
     password: Annotated[SecretStr, Field(min_length=12, max_length=128)]
-    role: Role = Field(
-        default=Role.EMPLOYEE,
-        description="ADMIN and MANAGER may only be assigned by an authenticated ADMIN.",
-    )
 
     @field_validator("password")
     @classmethod

@@ -38,7 +38,6 @@ def registration(**overrides):
         "last_name": "User",
         "email": "person@example.com",
         "password": TEST_PASSWORD,
-        "role": "EMPLOYEE",
         **overrides,
     }
 
@@ -97,6 +96,7 @@ def test_registration_login_and_current_user(api, db_engine):
     }
     with Session(db_engine) as db:
         stored = UserRepository(db).get(user["id"])
+        assert stored.role == Role.EMPLOYEE
         assert stored.password_hash.startswith("$argon2id$")
         assert stored.password_hash != TEST_PASSWORD
         assert len(stored.password_hash) <= 255
@@ -250,29 +250,48 @@ def test_nonexistent_and_deleted_users_cannot_authenticate(api, db_engine):
     assert api("GET", "/api/auth/me", headers=authorize(token))[0] == 401
 
 
-@pytest.mark.parametrize("role", ["ADMIN", "MANAGER"])
-def test_public_registration_cannot_assign_privileged_roles(api, role):
-    assert api("POST", "/api/auth/register", registration(role=role))[0] == 401
+@pytest.mark.parametrize("actor_role", [None, *Role])
+@pytest.mark.parametrize("requested_role", [role.value for role in Role])
+def test_registration_rejects_client_roles(api, db_engine, actor_role, requested_role):
+    headers = {}
+    if actor_role is not None:
+        actor_id = seed_user(db_engine, actor_role)
+        headers = authorize(create_access_token(actor_id))
+    status_code, body = api(
+        "POST", "/api/auth/register", registration(role=requested_role), headers=headers,
+    )
+    assert status_code == 422
+    assert body == {
+        "detail": [
+            {"loc": ["body", "role"], "msg": "Extra inputs are not permitted", "type": "extra_forbidden"}
+        ]
+    }
+    with Session(db_engine) as db:
+        assert UserRepository(db).get_by_email("person@example.com") is None
 
 
-@pytest.mark.parametrize("actor_role", [Role.EMPLOYEE, Role.MANAGER])
-@pytest.mark.parametrize("requested_role", ["ADMIN", "MANAGER"])
-def test_non_admins_cannot_register_privileged_users(api, db_engine, actor_role, requested_role):
+@pytest.mark.parametrize("actor_role", list(Role))
+def test_authenticated_registration_always_creates_employee(api, db_engine, actor_role):
     actor_id = seed_user(db_engine, actor_role)
-    assert api(
-        "POST", "/api/auth/register", registration(role=requested_role),
-        headers=authorize(create_access_token(actor_id)),
-    )[0] == 403
-
-
-@pytest.mark.parametrize("role", ["ADMIN", "MANAGER", "EMPLOYEE"])
-def test_admin_can_register_all_roles(api, db_engine, role):
-    actor_id = seed_user(db_engine, Role.ADMIN)
     status_code, user = api(
-        "POST", "/api/auth/register", registration(role=role),
+        "POST", "/api/auth/register", registration(),
         headers=authorize(create_access_token(actor_id)),
     )
-    assert status_code == 201 and user["role"] == role
+    assert status_code == 201 and user["role"] == "EMPLOYEE"
+    with Session(db_engine) as db:
+        assert UserRepository(db).get(user["id"]).role == Role.EMPLOYEE
+
+
+@pytest.mark.parametrize("authorization", ["Basic abc", "Bearer invalid.token"])
+def test_registration_preserves_invalid_authorization_errors(api, db_engine, authorization):
+    status_code, _, headers = api(
+        "POST", "/api/auth/register", registration(),
+        headers={"Authorization": authorization}, with_headers=True,
+    )
+    assert status_code == 401
+    assert headers["www-authenticate"] == "Bearer"
+    with Session(db_engine) as db:
+        assert UserRepository(db).get_by_email("person@example.com") is None
 
 
 @pytest.fixture
@@ -316,10 +335,6 @@ def test_role_checks_use_current_database_role(api, db_engine, role_routes):
         repository.update(repository.get(user_id), {"role": Role.EMPLOYEE})
     assert api("GET", "/_test/admin", headers=authorize(token))[0] == 403
     assert api("GET", "/api/auth/me", headers=authorize(token))[1]["role"] == "EMPLOYEE"
-    assert api(
-        "POST", "/api/auth/register", registration(role="ADMIN"),
-        headers=authorize(token),
-    )[0] == 403
 
 
 @pytest.mark.parametrize("key", [None, "", "change_me", "short", " " * 40, "replace_" + "x" * 40])
@@ -379,6 +394,8 @@ def test_swagger_authentication_contract(api):
     assert document["paths"]["/api/auth/me"]["get"]["security"] == [{"BearerAuth": []}]
     assert "security" not in document["paths"]["/api/auth/login"]["post"]
     register_schema = document["components"]["schemas"]["UserRegister"]
+    assert set(register_schema["properties"]) == {"first_name", "last_name", "email", "password"}
+    assert register_schema["additionalProperties"] is False
     assert register_schema["properties"]["password"]["writeOnly"] is True
     assert "password_hash" not in document["components"]["schemas"]["UserResponse"]["properties"]
     for resource in ("categories", "suppliers", "products"):

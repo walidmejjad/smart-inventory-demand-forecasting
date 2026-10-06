@@ -10,7 +10,6 @@ from app.schemas.user import UserResponse
 from app.security.dependencies import get_current_user, get_optional_current_user
 from app.security.exceptions import (
     AuthenticationError,
-    AuthorizationError,
     JWTConfigurationError,
 )
 from app.services.auth import AuthService, DuplicateEmailError
@@ -19,25 +18,21 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 DatabaseSession = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(get_optional_current_user)],
+)
 def register(
     data: UserRegister,
     db: DatabaseSession,
-    actor: Annotated[User | None, Depends(get_optional_current_user)],
 ) -> UserResponse:
-    """Public users may register as EMPLOYEE; only ADMIN may assign other roles."""
+    """Register a new user as EMPLOYEE. Roles cannot be assigned through this endpoint."""
     try:
-        user = AuthService(db).register(data, actor)
+        user = AuthService(db).register(data)
     except DuplicateEmailError:
         raise HTTPException(status.HTTP_409_CONFLICT, "Email is already registered") from None
-    except AuthenticationError as exc:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            str(exc),
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from None
-    except AuthorizationError as exc:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from None
     return UserResponse.model_validate(user)
 
 

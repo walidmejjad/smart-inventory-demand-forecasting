@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="Smart Inventory and Demand Forecasting workspace." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Smart Inventory</title>
+    <script>
+      // Apply the saved theme before first paint. Keep the key in sync with lib/theme.ts.
+      let theme = 'system'
+      try {
+        const stored = localStorage.getItem('smart-inventory-theme')
+        if (['light', 'dark', 'system'].includes(stored)) theme = stored
+      } catch { /* Storage may be disabled; follow the system preference. */ }
+      const dark = theme === 'dark' ||
+        (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+      document.documentElement.classList.toggle('dark', dark)
+      document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Please enable JavaScript to open Smart Inventory.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

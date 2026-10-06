@@ -9,3 +9,7 @@ pytest
 PyJWT>=2.14,<3
 pwdlib[argon2]>=0.3.1,<0.4
 email-validator>=2.3,<3
+pandas
+numpy
+# Tested Windows/Python 3.14 build; the 1.9.1 wheel was blocked by application control.
+scikit-learn==1.8.0

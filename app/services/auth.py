@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.models import Role, User
 from app.repositories.user import UserRepository
 from app.schemas.auth import UserLogin, UserRegister
-from app.security.exceptions import AuthenticationError, AuthorizationError
+from app.security.exceptions import AuthenticationError
 from app.security.passwords import hash_password, verify_dummy_password, verify_password
 from app.security.tokens import create_access_token, decode_access_token
 
@@ -17,17 +17,12 @@ class AuthService:
     def __init__(self, db: Session) -> None:
         self.repository = UserRepository(db)
 
-    def register(self, data: UserRegister, actor: User | None = None) -> User:
-        if data.role in {Role.ADMIN, Role.MANAGER}:
-            if actor is None:
-                raise AuthenticationError("Authentication required to assign this role")
-            if actor.role != Role.ADMIN:
-                raise AuthorizationError("Administrator access required")
-
+    def register(self, data: UserRegister) -> User:
         if self.repository.get_by_email(str(data.email)) is not None:
             raise DuplicateEmailError("Email is already registered")
 
         values = data.model_dump(exclude={"password"})
+        values["role"] = Role.EMPLOYEE
         values["password_hash"] = hash_password(data.password.get_secret_value())
         try:
             return self.repository.create(values)

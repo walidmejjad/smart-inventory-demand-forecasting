@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     jwt_algorithm: Literal["HS256"] = "HS256"
     jwt_access_token_expire_minutes: int = Field(default=60, ge=1, le=1440)
 
+    min_forecast_history_days: int = Field(default=30, ge=30)
+    min_forecast_sales_days: int = Field(default=7, ge=4)
+
     @property
     def database_url(self) -> URL:
         return URL.create(
